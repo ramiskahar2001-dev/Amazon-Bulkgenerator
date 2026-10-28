@@ -298,7 +298,7 @@
         </div>
         <div class="row2" style="margin-top:16px">
           <div class="field"><label>Präfix</label><input id="prefix" placeholder="optional" /></div>
-          <div class="field"><label>Name</label><input id="groupName" placeholder="Produktgruppe" value="Produktgruppe" /></div>
+          <div class="field"><label>Name</label><input id="groupName" placeholder="Produktgruppe" value="" /></div>
         </div>
         <div class="hint" style="margin-top:-4px">Präfix steht zwischen Länderkürzel und Kampagnenname: <code id="nameExample2">DE-SP-M-Produktgruppe-Exakt</code></div>
 
@@ -1303,8 +1303,9 @@ function todayISO(){const d=new Date();return d.getFullYear()+"-"+String(d.getMo
   renderCountries();renderTypes();renderStruct();refreshPresetSelect();
   $("ownAsinField").style.display=state.prodMode==="sku"?"block":"none";
   $("startDate").value=todayISO();
-  $("kwArea").value="laufschuhe herren\ntrailrunning schuhe"; state.kw.generisch=$("kwArea").value;
-  $("products").value="SKU-001\nSKU-002"; $("prodCount").textContent=2;
+  // Start ohne Beispieldaten
+  $("kwArea").value=""; state.kw.generisch="";
+  $("products").value=""; $("prodCount").textContent=0;
   state.prodMode="sku";
   updateKwCount();update();
 })();
