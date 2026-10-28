@@ -168,6 +168,12 @@
   .flex-between{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
   .flex-end{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
   .grp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chk-err{color:#ff9d9d;margin-bottom:4px}
+  .chk-warn{color:#d9c79a;margin-bottom:4px}
+  .rk-nav{display:flex;gap:6px;border:1px solid var(--border);border-radius:12px;padding:5px;background:var(--bg)}
+  .rk-nav a{color:var(--muted);text-decoration:none;font-weight:600;font-size:13px;padding:8px 14px;border-radius:8px}
+  .rk-nav a.on{background:var(--primary);color:var(--primary-ink)}
+  .rk-nav a:not(.on):hover{color:var(--text)}
   .gchip{font-size:10.5px;color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-family:"JetBrains Mono",monospace}
   .ovcard{border:1px solid var(--border);background:var(--bg);border-radius:var(--radius-sm);padding:13px 15px}
   .ovcard .ov-name{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--primary-2);font-weight:600;word-break:break-all}
@@ -193,7 +199,7 @@
       <span class="logo">RK</span>
       <span class="meta"><b>Ramis Kaharmanov</b><span>Bulkfile Generator</span></span>
     </div>
-    <span class="badge">Amazon Ads · SP / SD · Multi-Country</span>
+    <nav class="rk-nav"><a class="on" href="generator.html">Bulk Generator</a><a href="performance.html">Performance</a></nav>
   </div>
 
   <!-- PRESETS -->
@@ -305,6 +311,11 @@
           </div>
           <textarea id="products" style="min-height:92px" placeholder="SKU-001&#10;SKU-002"></textarea>
           <div class="countpill"><span id="prodCount">0</span> <span id="prodUnit">SKUs</span></div>
+          <div class="field" id="ownAsinField" style="margin-top:14px">
+            <label for="ownAsins">ASINs der beworbenen Produkte (für PT-Brand &amp; Auto-Ausschluss)</label>
+            <textarea id="ownAsins" style="min-height:70px" placeholder="B0XXXXXXXX&#10;B0YYYYYYYY"></textarea>
+            <div class="hint">Die Werbeanzeige läuft beim Seller über die SKU. Produktausrichtungen akzeptiert Amazon aber nur mit echten ASINs – deshalb hier die ASINs derselben Produkte eintragen.</div>
+          </div>
         </div>
 
         <div class="row2">
@@ -398,6 +409,12 @@
         <div class="flex-between"><b style="font-family:Sora;font-size:13.5px">Log – Produktgruppen in der Bulk</b><span class="badge"><span id="logCount">0</span> Kampagnen</span></div>
         <div id="logList"></div>
         <div class="hint" style="margin-top:12px">Das Log wird als zweites Tabellenblatt „Log" mitexportiert – so lassen sich einzelne Produktgruppen später wieder aus der Bulkfile entfernen.</div>
+      </div>
+
+      <div class="card" id="checkCard" style="display:none">
+        <div style="font-family:Sora;font-size:13.5px;font-weight:600" id="checkHead"></div>
+        <div class="hint" style="margin-top:4px">Prüft vor dem Download gegen Amazons Bulk-Regeln (Längen, ASINs, Gebote, Limits, Konflikte).</div>
+        <ul id="checkList" style="margin:10px 0 0;padding-left:18px;font-size:12px;line-height:1.6;max-height:260px;overflow:auto"></ul>
       </div>
 
       <div class="warn-strip">
@@ -557,8 +574,9 @@ const state={
 };
 
 /* ---------- Helpers ---------- */
-const lines=t=>(t||"").split("\n").map(s=>s.trim()).filter(Boolean);
+const lines=t=>(t||"").split("\n").map(s=>s.trim().replace(/\s+/g," ")).filter(Boolean);
 const uniq=a=>[...new Set(a)];
+const uniqCI=a=>{const seen=new Set();return a.filter(x=>{const k=x.toLowerCase();if(seen.has(k))return false;seen.add(k);return true;});};
 const money=v=>{const n=parseFloat(String(v).replace(",","."));return isNaN(n)?"":n.toFixed(2);};
 const esc=s=>String(s==null?"":s);
 function effBid(id){const b=parseFloat($("baseBid").value)||0;const f=parseFloat(state.factors[id])||0;return (b*f).toFixed(2);}
@@ -694,6 +712,7 @@ $("prodMode").addEventListener("click",e=>{
   const b=e.target.closest("button");if(!b)return;state.prodMode=b.dataset.mode;
   [...$("prodMode").children].forEach(x=>x.classList.toggle("on",x===b));
   $("prodUnit").textContent=state.prodMode==="sku"?"SKUs":"ASINs";
+  $("ownAsinField").style.display=state.prodMode==="sku"?"block":"none";
   $("products").placeholder=state.prodMode==="sku"?"SKU-001\nSKU-002":"B0XXXXXXXX\nB0YYYYYYYY";
   update();
 });
@@ -715,7 +734,7 @@ $("cascHead").addEventListener("click",()=>{$("cascHead").classList.toggle("clos
 ["negExact","negPhrase","negAsins","autoCascade"].forEach(id=>$(id).addEventListener("input",update));
 $("autoCascade").addEventListener("change",update);
 $("negClear").addEventListener("click",()=>{$("negExact").value="";$("negPhrase").value="";$("negAsins").value="";update();});
-["prefix","groupName","budget","sdBudget","startDate","strategy","portfolio","plTop","plProd","plRest"].forEach(id=>$(id).addEventListener("input",update));
+["ownAsins","prefix","groupName","budget","sdBudget","startDate","strategy","portfolio","plTop","plProd","plRest"].forEach(id=>$(id).addEventListener("input",update));
 
 /* ============================================================
    GENERIERUNG
@@ -739,23 +758,50 @@ function campaignName(country,t,g){return nameParts(country,t,g).campaign;}
 
 function baseRow(cols){return Object.fromEntries(cols.map(c=>[c,""]));}
 
-/* Zeilen einer Produktgruppe für ein Land -> {sp:[…], sd:[…]} */
+/* Amazon-Grenzen (aus Fehlerreport + Amazon-Doku):
+   Negativ Wortgruppe: max. 4 Wörter / 80 Zeichen · Negativ Exakt: max. 10 Wörter / 80 Zeichen
+   Keyword: max. 10 Wörter / 80 Zeichen · ASIN-Ausrichtung: genau 10 Zeichen                    */
+const isAsin=a=>/^[A-Z0-9]{10}$/i.test(String(a).trim());
+const wordCount=t=>String(t).trim().split(/\s+/).filter(Boolean).length;
+
+/* Zeilen einer Produktgruppe für ein Land -> {sp:[…], sd:[…], warn:[…]} */
 function rowsForGroup(g, country){
-  const sp=[], sd=[], negs=[];
+  const sp=[], sd=[], negs=[], warn=[];
   const prods=g.products;
+  // Werbeanzeige: Seller nur per SKU, Vendor nur per ASIN
   const prodVal=p=>prods.mode==="asin"?{ASIN:p}:{SKU:p};
   const activeTypes=TYPES.filter(t=>g.on[t.id]);
   const B=g.baseBid;
   const clauses=(g.autoClauses&&g.autoClauses.length)?g.autoClauses:AUTO_CLAUSES.map(([key,label])=>({key,label,f:0.75}));
-  const gen=uniq(lines(g.kw.generisch));
-  const brand=uniq(lines(g.kw.brandKeywords));
-  const comp=uniq(lines(g.kw.konkurrenzAsins));
+  const gen=uniqCI(lines(g.kw.generisch));
+  const brand=uniqCI(lines(g.kw.brandKeywords));
   const money2=f=>(B*(parseFloat(f)||0)).toFixed(2);
+  const gName=`„${g.name}"`;
+
+  // Produktausrichtung braucht immer echte ASINs – auch bei Seller-Konten
+  const ownRaw = prods.mode==="asin" ? prods.list : uniq(lines(g.ownAsins));
+  const own = ownRaw.filter(isAsin);
+  const compRaw = uniq(lines(g.kw.konkurrenzAsins));
+  const comp = compRaw.filter(isAsin);
+  [...ownRaw,...compRaw].filter(a=>!isAsin(a)).forEach(a=>warn.push(`${gName}: „${a}" ist keine gültige ASIN (10 Zeichen) und wird bei der Produktausrichtung ausgelassen.`));
+  const needsOwn = activeTypes.some(t=>t.ptSource==="products") || (g.autoCascade && activeTypes.some(t=>t.kind==="auto"));
+  if(prods.mode==="sku" && needsOwn && !own.length)
+    warn.push(`${gName}: Keine ASINs der eigenen Produkte hinterlegt – PT-Brand-Kampagnen entfallen und die Auto-Kampagne schließt die eigenen Produkte nicht aus.`);
+  // Keyword-Länge prüfen
+  [...gen,...brand].forEach(k=>{ if(wordCount(k)>10||k.length>80) warn.push(`${gName}: Keyword „${k}" ist länger als 10 Wörter / 80 Zeichen und wird ausgelassen.`); });
+  const kwOk=k=>wordCount(k)<=10&&k.length<=80;
+  const phraseConverted=new Set(), phraseSkipped=new Set();
 
   activeTypes.forEach(t=>{
     const cname=nameParts(country,t,g).campaign;
     const agId=cname+"-AG";
     const bid=money2(g.factors[t.id]);
+
+    // Ziele vorab bestimmen – Kampagnen ohne gültige Ziele werden nicht angelegt
+    const kwTargets = t.kind==="kw" ? uniqCI(lines(g.kw[t.kwSource])).filter(kwOk) : [];
+    const ptTargets = t.kind==="pt" ? (t.ptSource==="products" ? own : comp) : [];
+    if(t.kind==="kw" && !kwTargets.length){ if(lines(g.kw[t.kwSource]).length) warn.push(`${gName}: ${cname} entfällt – keine gültigen Keywords.`); return; }
+    if(t.kind==="pt" && !ptTargets.length){ warn.push(`${gName}: ${cname} entfällt – keine gültigen ASINs ${t.ptSource==="products"?"der eigenen Produkte":"der Konkurrenz"}.`); return; }
 
     if(t.sd){
       /* ---------- Sponsored Display (eigenes Tabellenblatt) ---------- */
@@ -766,8 +812,7 @@ function rowsForGroup(g, country){
       sd.push(Object.assign(C(),{Product:P,Entity:"Ad Group",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,"Ad Group Name":cname,
         State:"enabled","Ad Group Default Bid":bid,"Bid Optimization":"Conversions"}));
       prods.list.forEach(p=>sd.push(Object.assign(C(),{Product:P,Entity:"Product Ad",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,State:"enabled",...prodVal(p)})));
-      const targets=t.ptSource==="products"?prods.list:comp;
-      targets.forEach(a=>sd.push(Object.assign(C(),{Product:P,Entity:"Contextual Targeting",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
+      ptTargets.forEach(a=>sd.push(Object.assign(C(),{Product:P,Entity:"Contextual Targeting",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
         State:"enabled",Bid:bid,"Targeting Expression":`asin="${a}"`})));
       return;
     }
@@ -789,24 +834,37 @@ function rowsForGroup(g, country){
       clauses.forEach(cl=>sp.push(Object.assign(C(),{Product:P,Entity:"Product Targeting",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
         State:"enabled",Bid:(useClauseF?money2(cl.f):bid),"Product Targeting Expression":cl.key})));
     } else if(t.kind==="kw"){
-      uniq(lines(g.kw[t.kwSource])).forEach(kw=>sp.push(Object.assign(C(),{Product:P,Entity:"Keyword",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
+      kwTargets.forEach(kw=>sp.push(Object.assign(C(),{Product:P,Entity:"Keyword",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
         State:"enabled",Bid:bid,"Keyword Text":kw,"Match Type":t.match})));
     } else if(t.kind==="pt"){
-      const targets=t.ptSource==="products"?prods.list:uniq(lines(g.kw[t.ptSource]));
-      targets.forEach(a=>sp.push(Object.assign(C(),{Product:P,Entity:"Product Targeting",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
+      ptTargets.forEach(a=>sp.push(Object.assign(C(),{Product:P,Entity:"Product Targeting",Operation:"Create","Campaign ID":cname,"Ad Group ID":agId,
         State:"enabled",Bid:bid,"Product Targeting Expression":`asin="${a}"`})));
     }
 
-    /* ----- Negativ-Kaskade (Kampagnen-Ebene) ----- */
-    const negKw=(txt,mt)=>negs.push(Object.assign(C(),{Product:P,Entity:"Campaign Negative Keyword",Operation:"Create","Campaign ID":cname,State:"enabled","Keyword Text":txt,"Match Type":mt}));
+    /* ----- Negativ-Kaskade (Kampagnen-Ebene) mit Amazon-Längenregeln ----- */
+    const exactSet=new Set(), phraseSet=new Set();
+    const pushNeg=(txt,mt)=>negs.push(Object.assign(C(),{Product:P,Entity:"Campaign Negative Keyword",Operation:"Create","Campaign ID":cname,State:"enabled","Keyword Text":txt,"Match Type":mt}));
+    const negKw=(txt,mt)=>{
+      const key=txt.toLowerCase(), w=wordCount(txt), long=txt.length>80;
+      if(mt==="negativePhrase" && (w>4||long)){
+        // Wortgruppe erlaubt max. 4 Wörter → exakt ausschließen (falls noch nicht vorhanden)
+        if(exactSet.has(key)){ phraseSkipped.add(txt); return; }
+        mt="negativeExact"; phraseConverted.add(txt);
+      }
+      if(mt==="negativeExact"){
+        if(w>10||long){ warn.push(`${gName}: Ausschluss „${txt}" ist länger als 10 Wörter / 80 Zeichen und wird ausgelassen.`); return; }
+        if(exactSet.has(key)) return; exactSet.add(key);
+      } else { if(phraseSet.has(key)) return; phraseSet.add(key); }
+      pushNeg(txt,mt);
+    };
     const negPt=a=>negs.push(Object.assign(C(),{Product:P,Entity:"Campaign Negative Product Targeting",Operation:"Create","Campaign ID":cname,State:"enabled","Product Targeting Expression":`asin="${a}"`}));
     if(g.autoCascade){
       if(t.kind==="auto"){
         gen.forEach(k=>negKw(k,"negativeExact"));
         gen.forEach(k=>negKw(k,"negativePhrase"));
         brand.forEach(k=>negKw(k,"negativePhrase"));
-        prods.list.forEach(negPt);   // eigene beworbene Produkte
-        comp.forEach(negPt);         // Konkurrenz-ASINs
+        own.forEach(negPt);    // eigene Produkte (nur echte ASINs)
+        comp.forEach(negPt);   // Konkurrenz-ASINs
       } else if(t.kind==="kw" && !t.brand && t.match==="phrase"){
         gen.forEach(k=>negKw(k,"negativeExact"));
         brand.forEach(k=>negKw(k,"negativePhrase"));
@@ -822,10 +880,123 @@ function rowsForGroup(g, country){
     if(t.kind!=="pt" && t.match!=="exact"){
       lines(g.negExact).forEach(k=>negKw(k,"negativeExact"));
       lines(g.negPhrase).forEach(k=>negKw(k,"negativePhrase"));
-      lines(g.negAsins).forEach(negPt);
+      lines(g.negAsins).forEach(a=>{ if(isAsin(a)) negPt(a); else warn.push(`${gName}: Negativ-ASIN „${a}" ist ungültig (10 Zeichen) und wird ausgelassen.`); });
     }
   });
-  return {sp:[...sp, ...negs], sd};   // Negative gesammelt am Ende (wie Amazon-Vorlage)
+  if(phraseSkipped.size) warn.push(`${gName}: ${phraseSkipped.size} Wortgruppen-Ausschluss/-schlüsse mit mehr als 4 Wörtern entfallen (Amazon-Grenze) – sie sind bereits exakt ausgeschlossen: ${[...phraseSkipped].join(", ")}`);
+  if(phraseConverted.size) warn.push(`${gName}: ${phraseConverted.size} Wortgruppen-Ausschluss/-schlüsse mit mehr als 4 Wörtern werden stattdessen exakt ausgeschlossen: ${[...phraseConverted].join(", ")}`);
+  return {sp:[...sp, ...negs], sd, warn};   // Negative gesammelt am Ende (wie Amazon-Vorlage)
+}
+
+/* ============================================================
+   UPLOAD-PRÜFUNG – läuft vor jedem Download
+   Fehler  = würde Amazon sicher ablehnen → Download gesperrt
+   Hinweis = wurde automatisch korrigiert oder sollte geprüft werden
+   ============================================================ */
+const CURRENCY={DE:"EUR",FR:"EUR",IT:"EUR",ES:"EUR",NL:"EUR",BE:"EUR",IE:"EUR",UK:"GBP",SE:"SEK",PL:"PLN",USA:"USD",CA:"CAD",JP:"JPY"};
+const MIN_BID={EUR:0.02,GBP:0.02,USD:0.02,CAD:0.02};
+const LIMITS={kwPerAdGroup:1000,negKwPerCampaign:1000,ptPerAdGroup:10000,placementMax:900,campaignNameMax:128};
+const looksLikeAsin=a=>/^B0[A-Z0-9]{8}$/i.test(a);
+
+function groupsForCheck(){
+  const list=[...state.collection];
+  const live=currentGroup();
+  if(live.products.list.length || lines(live.kw.generisch).length) list.push(Object.assign(live,{__live:true}));
+  return list;
+}
+
+function validateAll(){
+  const errors=[], warnings=[];
+  const E=m=>{if(!errors.includes(m))errors.push(m);}, W=m=>{if(!warnings.includes(m))warnings.push(m);};
+  const groups=groupsForCheck();
+  const countries=[...state.countries];
+  const today=new Date(); const todayStr=today.getFullYear()+String(today.getMonth()+1).padStart(2,"0")+String(today.getDate()).padStart(2,"0");
+
+  if(!groups.length){ return {errors, warnings, empty:true}; }
+
+  /* ---------- Eingaben je Produktgruppe ---------- */
+  const namesSeen={};
+  groups.forEach(g=>{
+    const n=`„${g.name}"${g.__live?" (aktuelle Eingabe)":""}`;
+    namesSeen[g.name.toLowerCase()]=(namesSeen[g.name.toLowerCase()]||0)+1;
+    if(!TYPES.some(t=>g.on[t.id])) E(`${n}: Kein Kampagnentyp aktiv.`);
+    if(!g.products.list.length) E(`${n}: Keine beworbenen Produkte eingetragen – ohne Produkt entstehen keine Anzeigen.`);
+    if(g.products.mode==="asin"){
+      g.products.list.filter(p=>!isAsin(p)).forEach(p=>E(`${n}: „${p}" ist keine ASIN. Vendor-Konten können Anzeigen nur mit ASIN anlegen.`));
+    } else {
+      g.products.list.filter(looksLikeAsin).forEach(p=>W(`${n}: „${p}" sieht wie eine ASIN aus. Seller-Konten brauchen für Anzeigen die SKU – bitte prüfen.`));
+    }
+    // Startdatum
+    if(!g.startDate) W(`${n}: Kein Startdatum – Amazon startet dann ab heute.`);
+    else if(g.startDate<todayStr) E(`${n}: Startdatum ${g.startDate.slice(6,8)}.${g.startDate.slice(4,6)}.${g.startDate.slice(0,4)} liegt in der Vergangenheit.`);
+    // Budgets
+    const bud=parseFloat(g.budget);
+    if(!(bud>0)) E(`${n}: Tagesbudget fehlt oder ist 0.`); else if(bud<1) W(`${n}: Tagesbudget unter 1 – liegt meist unter Amazons Mindestbudget.`);
+    if(TYPES.some(t=>t.sd&&g.on[t.id])){ const sb=parseFloat(g.sdBudget||g.budget); if(!(sb>0)) E(`${n}: SD-Tagesbudget fehlt oder ist 0.`); }
+    // Platzierungen
+    [["Top of Search",g.plTop],["Produktseiten",g.plProd],["Restliche Suche",g.plRest]].forEach(([l,v])=>{
+      if(v<0||v>LIMITS.placementMax) E(`${n}: Platzierungs-Aufschlag ${l} muss zwischen 0 und ${LIMITS.placementMax} % liegen.`);});
+    if(g.portfolio && !/^\d+$/.test(g.portfolio)) W(`${n}: Portfolio-ID „${g.portfolio}" ist keine Zahl – Amazon erwartet die numerische ID eines bestehenden Portfolios.`);
+    // Logik-Konflikte Brand / Generisch
+    const gen=lines(g.kw.generisch).map(s=>s.toLowerCase()), brand=lines(g.kw.brandKeywords).map(s=>s.toLowerCase());
+    if(g.autoCascade && brand.length){
+      gen.forEach(k=>{ const hit=brand.find(b=>(" "+k+" ").includes(" "+b+" ")); if(hit) W(`${n}: Das generische Keyword „${k}" enthält das Brand-Keyword „${hit}". Durch die Negativ-Kaskade (Brand als Wortgruppe negativ) würde es in Phrase/Broad/Auto nie ausgeliefert.`); });
+    }
+    const caseDup=list=>{const m={};list.forEach(s=>{const k=s.toLowerCase();m[k]=(m[k]||0)+1;});return Object.keys(m).filter(k=>m[k]>1);};
+    caseDup(lines(g.kw.generisch)).forEach(k=>W(`${n}: Keyword „${k}" steht mehrfach in der Liste (Groß-/Kleinschreibung) – wird nur einmal angelegt.`));
+    const own=(g.products.mode==="asin"?g.products.list:lines(g.ownAsins)).map(s=>s.toUpperCase());
+    lines(g.kw.konkurrenzAsins).map(s=>s.toUpperCase()).filter(a=>own.includes(a)).forEach(a=>W(`${n}: ${a} steht bei den Konkurrenz-ASINs, ist aber ein eigenes Produkt.`));
+  });
+  Object.entries(namesSeen).filter(([,c])=>c>1).forEach(([k])=>E(`Produktgruppe „${k}" ist mehrfach in der Bulk – gleiche Kampagnennamen würden kollidieren. Bitte Namen unterscheiden.`));
+
+  /* ---------- Länder / Währungen ---------- */
+  countries.filter(c=>CURRENCY[c]!=="EUR").forEach(c=>W(`${c}: Gebote und Budgets werden dort in ${CURRENCY[c]} gelesen, nicht in Euro – Werte ggf. anpassen.`));
+
+  /* ---------- Sicherheitsnetz auf den fertigen Zeilen ---------- */
+  countries.forEach(c=>{
+    const R=rowsForCountry(c,true);
+    R.warn.forEach(W);
+    const cur=CURRENCY[c], minBid=MIN_BID[cur];
+    const campCount={}, kwPerAg={}, negPerCamp={}, ptPerAg={};
+    const checkBid=(v,where)=>{ const b=parseFloat(v); if(!(b>0)) E(`${c} · ${where}: Gebot fehlt oder ist 0.`); else if(minBid && b<minBid) E(`${c} · ${where}: Gebot ${v} liegt unter dem Mindestgebot ${minBid.toFixed(2)} ${cur}.`); };
+    const budgetOf={};
+    [...R.sp,...R.sd].forEach(r=>{
+      const id=r["Campaign ID"];
+      if(r.Entity==="Campaign"){
+        campCount[id]=(campCount[id]||0)+1;
+        budgetOf[id]=parseFloat(r["Daily Budget"]||r.Budget);
+        if(id.length>LIMITS.campaignNameMax) W(`${c}: Kampagnenname „${id.slice(0,40)}…" hat ${id.length} Zeichen – Amazon erlaubt höchstens ${LIMITS.campaignNameMax}.`);
+      }
+      if(r.Entity==="Ad Group"){ checkBid(r["Ad Group Default Bid"],id); if(budgetOf[id] && parseFloat(r["Ad Group Default Bid"])>budgetOf[id]) W(`${c} · ${id}: Gebot ist höher als das Tagesbudget.`); }
+      if(r.Entity==="Keyword"){ checkBid(r.Bid,id); kwPerAg[r["Ad Group ID"]]=(kwPerAg[r["Ad Group ID"]]||0)+1;
+        const t=r["Keyword Text"]; if(wordCount(t)>10||t.length>80) E(`${c} · ${id}: Keyword „${t}" ist zu lang (max. 10 Wörter / 80 Zeichen).`); }
+      if(r.Entity==="Product Targeting"||r.Entity==="Contextual Targeting"){ checkBid(r.Bid,id); ptPerAg[r["Ad Group ID"]]=(ptPerAg[r["Ad Group ID"]]||0)+1; }
+      const expr=r["Product Targeting Expression"]||r["Targeting Expression"]||"";
+      if(expr.startsWith("asin=") && !/^asin="[A-Z0-9]{10}"$/i.test(expr)) E(`${c} · ${id}: Ungültige ASIN-Ausrichtung ${expr} (muss 10 Zeichen haben).`);
+      if(r.Entity==="Campaign Negative Keyword"){ negPerCamp[id]=(negPerCamp[id]||0)+1;
+        const t=r["Keyword Text"], w=wordCount(t);
+        if(r["Match Type"]==="negativePhrase" && (w>4||t.length>80)) E(`${c} · ${id}: Wortgruppen-Ausschluss „${t}" hat mehr als 4 Wörter.`);
+        if(r["Match Type"]==="negativeExact" && (w>10||t.length>80)) E(`${c} · ${id}: Exakter Ausschluss „${t}" hat mehr als 10 Wörter.`); }
+    });
+    Object.entries(campCount).filter(([,n])=>n>1).forEach(([id])=>E(`${c}: Kampagne ${id} würde ${campCount[id]}× angelegt.`));
+    Object.entries(kwPerAg).filter(([,n])=>n>LIMITS.kwPerAdGroup).forEach(([ag,n])=>E(`${c} · ${ag.replace(/-AG$/,"")}: ${n} Keywords – Amazon erlaubt höchstens ${LIMITS.kwPerAdGroup} pro Anzeigengruppe.`));
+    Object.entries(negPerCamp).filter(([,n])=>n>LIMITS.negKwPerCampaign).forEach(([id,n])=>E(`${c} · ${id}: ${n} Negativ-Keywords – Amazon erlaubt höchstens ${LIMITS.negKwPerCampaign} pro Kampagne.`));
+    Object.entries(ptPerAg).filter(([,n])=>n>LIMITS.ptPerAdGroup).forEach(([ag,n])=>E(`${c} · ${ag.replace(/-AG$/,"")}: ${n} Produktausrichtungen – Amazon erlaubt höchstens ${LIMITS.ptPerAdGroup}.`));
+  });
+  return {errors, warnings, empty:false};
+}
+
+function renderCheck(){
+  const v=validateAll();
+  const card=$("checkCard"), head=$("checkHead"), list=$("checkList");
+  card.style.display="block";
+  if(v.empty){ head.innerHTML=`<span style="color:var(--muted)">○ Upload-Prüfung: noch keine Daten</span>`; list.innerHTML=""; card.style.borderColor="var(--border)"; }
+  else if(v.errors.length){ head.innerHTML=`<span style="color:#ff8d8d">✕ ${v.errors.length} Fehler – Download gesperrt</span>${v.warnings.length?` <span style="color:#e4c877;font-weight:500"> · ${v.warnings.length} Hinweis(e)</span>`:""}`; card.style.borderColor="rgba(255,90,90,.45)"; }
+  else if(v.warnings.length){ head.innerHTML=`<span style="color:#e4c877">⚠ Bereit – ${v.warnings.length} Hinweis(e) prüfen</span>`; card.style.borderColor="rgba(255,170,60,.4)"; }
+  else { head.innerHTML=`<span style="color:#6fd39b">✓ Upload-Prüfung bestanden</span>`; card.style.borderColor="rgba(111,211,155,.4)"; }
+  const li=(m,cls)=>`<li class="${cls}">${esc(m).replace(/</g,"&lt;")}</li>`;
+  list.innerHTML=v.errors.map(m=>li(m,"chk-err")).join("")+v.warnings.map(m=>li(m,"chk-warn")).join("");
+  return v;
 }
 
 /* aktuelle Eingaben als Produktgruppen-Objekt */
@@ -847,6 +1018,7 @@ function currentGroup(){
     plTop:parseFloat($("plTop").value)||0, plProd:parseFloat($("plProd").value)||0, plRest:parseFloat($("plRest").value)||0,
     structure:state.structure,
     autoCascade:$("autoCascade").checked,
+    ownAsins:$("ownAsins").value,
     negExact:$("negExact").value, negPhrase:$("negPhrase").value, negAsins:$("negAsins").value,
     autoClauses:state.autoClauses.map(c=>({...c})),
     activeTypeLabels:TYPES.filter(t=>state.on[t.id]).map(t=>t.suffix||t.seg||t.label),
@@ -858,13 +1030,19 @@ function allGroups(){ return [...state.collection]; }
 
 /* Zeilen für ein Land: alle Gruppen der Sammlung + aktuelle Live-Eingabe */
 function rowsForCountry(country, includeLive=true){
-  const sp=[], sd=[];
-  const add=g=>{const r=rowsForGroup(g,country);sp.push(...r.sp);sd.push(...r.sd);};
+  const sp=[], sd=[], warn=[];
+  const add=g=>{const r=rowsForGroup(g,country);sp.push(...r.sp);sd.push(...r.sd);r.warn.forEach(w=>{if(!warn.includes(w))warn.push(w);});};
   state.collection.forEach(add);
   if(includeLive){ const g=currentGroup(); if(g.products.list.length) add(g); }
-  return {sp, sd};
+  return {sp, sd, warn};
 }
 
+/* Seller-Konten (nur SKU): Amazon-Vorlage ohne ASIN-Spalte (31 Spalten); sobald eine Gruppe im ASIN-Modus ist, bleibt sie drin */
+function spColumns(){
+  const groups=[...state.collection]; const live=currentGroup(); if(live.products.list.length) groups.push(live);
+  const allSku=groups.length>0 && groups.every(g=>g.products.mode==="sku");
+  return allSku ? COLUMNS.filter(c=>c!=="ASIN") : COLUMNS;
+}
 function toAOA(rows, cols=COLUMNS){const aoa=[cols.slice()];rows.forEach(r=>aoa.push(cols.map(c=>r[c]??"")));return aoa;}
 
 /* ---------- Live-Update (Counts + Vorschau) ---------- */
@@ -878,6 +1056,7 @@ function update(){
   const firstCountry=[...state.countries][0]||"DE";
   const R=rowsForCountry(firstCountry,true);
   const rows=[...R.sp,...R.sd];
+
 
   const cnt=(...e)=>rows.filter(r=>e.includes(r.Entity)).length;
   $("cCamp").textContent=cnt("Campaign");
@@ -901,7 +1080,9 @@ function update(){
 
   // Download aktivierbar?
   const haveData=[...state.countries].some(c=>{const x=rowsForCountry(c,true);return x.sp.length+x.sd.length>0;});
-  $("download").disabled=!haveData;
+  const chk=renderCheck();
+  $("download").disabled=!haveData || chk.errors.length>0;
+  $("download").title=chk.errors.length?"Erst die Fehler in der Upload-Prüfung beheben":"";
   renderColl(); renderLog(); renderOverview();
 }
 
@@ -969,7 +1150,7 @@ $("addToColl").addEventListener("click",()=>{
   // Felder für die nächste Produktgruppe leeren – Einstellungen (Typen, Gebote, Land, Budget) bleiben erhalten
   Object.keys(state.kw).forEach(k=>state.kw[k]="");
   $("kwArea").value="";
-  $("products").value=""; $("prodCount").textContent=0;
+  $("products").value=""; $("prodCount").textContent=0; $("ownAsins").value="";
   $("negExact").value=""; $("negPhrase").value=""; $("negAsins").value="";
   $("groupName").value="";
   updateKwCount();
@@ -1009,17 +1190,23 @@ function renderLog(){
 $("logList").addEventListener("click",e=>{const b=e.target.closest("[data-logremove]");if(!b)return;state.collection.splice(+b.dataset.logremove,1);update();});
 
 /* ---------- Download ---------- */
-function logSheetAOA(){
-  const head=["Produktgruppe","Länder","Produkte","Modus","Kampagnentypen","Hinzugefügt"];
+function logSheetAOA(country){
+  // Eine Zeile je Kampagne – Sammlung + aktuell befüllte Gruppe
+  const head=["Produktgruppe","Land","Kampagne","Produkte","Modus","Hinzugefügt"];
   const aoa=[head];
-  state.collection.forEach(g=>{
+  const groups=[...state.collection];
+  const live=currentGroup(); if(live.products.list.length) groups.push(live);
+  groups.forEach(g=>{
     const dt=g.addedAt?new Date(g.addedAt):new Date();
-    aoa.push([g.name,[...state.countries].join("/"),g.products.list.length,g.products.mode.toUpperCase(),
-      TYPES.filter(t=>g.on[t.id]).map(t=>t.label).join(" | "),dt.toISOString().slice(0,16).replace("T"," ")]);
+    const stamp=`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+    const r=rowsForGroup(g,country);
+    [...r.sp,...r.sd].filter(x=>x.Entity==="Campaign").forEach(x=>
+      aoa.push([g.name,country,x["Campaign ID"],g.products.list.join(", "),g.products.mode==="asin"?"ASIN (Vendor)":"SKU (Seller)",stamp]));
   });
   return aoa;
 }
 $("download").addEventListener("click",()=>{
+  { const v=validateAll(); if(v.errors.length){ $("dlMsg").style.color="var(--danger)"; $("dlMsg").textContent=`Download gesperrt: ${v.errors.length} Fehler in der Upload-Prüfung.`; return; } }
   $("dlMsg").textContent="";
   try{
     const countries=[...state.countries];
@@ -1029,9 +1216,9 @@ $("download").addEventListener("click",()=>{
       const R=rowsForCountry(c,true);
       if(!R.sp.length && !R.sd.length)return;
       const sheets=[];
-      if(R.sp.length) sheets.push({name:"Sponsored Products Campaigns",aoa:toAOA(R.sp,COLUMNS)});
+      if(R.sp.length) sheets.push({name:"Sponsored Products Campaigns",aoa:toAOA(R.sp,spColumns())});
       if(R.sd.length) sheets.push({name:"Sponsored Display Campaigns",aoa:toAOA(R.sd,SD_COLUMNS)});
-      sheets.push({name:"Log",aoa:logSheetAOA()});
+      sheets.push({name:"Log",aoa:logSheetAOA(c)});
       const bytes=window.makeXlsx(sheets);
       files.push({name:`RK_Bulk_${c}_${stamp}.xlsx`,bytes});
     });
@@ -1062,7 +1249,9 @@ function applySnapshot(s){
   state.prodMode=(g.products&&g.products.mode)||"sku";
   [...$("prodMode").children].forEach(x=>x.classList.toggle("on",x.dataset.mode===state.prodMode));
   $("prodUnit").textContent=state.prodMode==="sku"?"SKUs":"ASINs";
+  $("ownAsinField").style.display=state.prodMode==="sku"?"block":"none";
   $("products").value=(g.products&&g.products.list||[]).join("\n");
+  $("ownAsins").value=g.ownAsins||"";
   $("budget").value=g.budget||10;
   $("sdBudget").value=g.sdBudget||10;
   $("startDate").value=g.startDate?`${g.startDate.slice(0,4)}-${g.startDate.slice(4,6)}-${g.startDate.slice(6,8)}`:todayISO();
@@ -1083,6 +1272,7 @@ $("presetSelect").addEventListener("change",()=>{const n=$("presetSelect").value
 
 /* ---------- Reset ---------- */
 $("clearInputs").addEventListener("click",()=>{
+  $("ownAsins").value="";
   Object.keys(state.kw).forEach(k=>state.kw[k]="");$("kwArea").value="";
   $("products").value="";$("prodCount").textContent=0;
   $("negExact").value="";$("negPhrase").value="";$("negAsins").value="";
@@ -1103,7 +1293,7 @@ $("resetAll").addEventListener("click",()=>{
   state.activeList="generisch";$("kwArea").value="";
   [...$("kwTabs").children].forEach(x=>x.classList.toggle("on",x.dataset.list==="generisch"));
   [...$("prodMode").children].forEach(x=>x.classList.toggle("on",x.dataset.mode==="sku"));
-  $("prodUnit").textContent="SKUs";$("startDate").value=todayISO();
+  $("ownAsins").value="";$("ownAsinField").style.display="block";$("prodUnit").textContent="SKUs";$("startDate").value=todayISO();
   renderCountries();renderTypes();renderStruct();updateKwCount();$("prodCount").textContent=0;update();
 });
 
@@ -1111,6 +1301,7 @@ $("resetAll").addEventListener("click",()=>{
 function todayISO(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
 (function init(){
   renderCountries();renderTypes();renderStruct();refreshPresetSelect();
+  $("ownAsinField").style.display=state.prodMode==="sku"?"block":"none";
   $("startDate").value=todayISO();
   $("kwArea").value="laufschuhe herren\ntrailrunning schuhe"; state.kw.generisch=$("kwArea").value;
   $("products").value="SKU-001\nSKU-002"; $("prodCount").textContent=2;
