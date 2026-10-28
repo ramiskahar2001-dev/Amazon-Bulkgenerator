@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RK Performance — Amazon Ads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+<style>
+  :root{
+    --bg:#0d0e11; --bg-soft:#141620; --card:#161922; --card-2:#1b1f2a; --card-3:#20242f;
+    --border:#272c38; --border-soft:#20242e; --text:#eef0f3; --muted:#9aa2b1; --muted-2:#6b7280;
+    --primary:#c9a24b; --primary-2:#e4c877; --primary-ink:#1a1405; --primary-dim:rgba(201,162,75,.15);
+    --good-bg:rgba(111,211,155,.14); --good:#7fdcab; --bad-bg:rgba(240,170,80,.16); --bad:#f0b468; --neutral-bg:rgba(170,178,194,.14);
+    --danger:#ff7a7a; --radius:16px; --radius-sm:11px;
+  }
+  *{box-sizing:border-box} html,body{margin:0}
+  body{background:radial-gradient(1000px 520px at 88% -8%,rgba(201,162,75,.12),transparent 60%),radial-gradient(760px 420px at -6% 4%,rgba(154,162,177,.07),transparent 55%),var(--bg);
+    color:var(--text);font-family:Manrope,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1600px;margin:0 auto;padding:22px 22px 80px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(145deg,var(--primary-2),var(--primary));display:inline-flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-family:Sora;font-size:15px}
+  .brand b{font-family:Sora;font-weight:700;font-size:15px;display:block;line-height:1.1}
+  .brand span{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted-2)}
+  .nav{display:flex;gap:6px;border:1px solid var(--border);border-radius:12px;padding:5px;background:var(--bg)}
+  .nav a{color:var(--muted);text-decoration:none;font-weight:600;font-size:13px;padding:8px 14px;border-radius:8px}
+  .nav a.on{background:var(--primary);color:var(--primary-ink)}
+  .nav a:not(.on):hover{color:var(--text)}
+
+  .card{background:linear-gradient(180deg,var(--card),var(--bg-soft));border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+  h1{font-family:Sora;font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0}
+  label,.lab{display:block;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+  input,select{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:9px 11px;font-size:13px;font-family:Manrope,sans-serif;outline:none}
+  input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-dim)}
+  .btn{appearance:none;border:0;cursor:pointer;font-family:Sora;font-weight:600;border-radius:var(--radius-sm);padding:9px 14px;font-size:12.5px}
+  .btn-gold{background:linear-gradient(180deg,var(--primary-2),var(--primary));color:var(--primary-ink)}
+  .btn-ghost{background:var(--card-3);color:var(--text);border:1px solid var(--border)}
+  .btn-ghost:hover{border-color:var(--primary)}
+  .btn-link{background:none;border:0;color:var(--primary-2);cursor:pointer;font-family:Manrope;font-weight:600;font-size:13px;padding:6px}
+  .btn-link:hover{text-decoration:underline}
+  .btn-x{background:none;border:0;color:var(--muted-2);cursor:pointer;font-size:12px;padding:4px 6px}
+  .btn-x:hover{color:var(--danger)}
+
+  .toolbar{display:grid;grid-template-columns:minmax(260px,1.4fr) 1fr 1fr auto;gap:14px;align-items:end;margin:18px 0}
+  @media(max-width:1000px){.toolbar{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.toolbar{grid-template-columns:1fr}}
+  .drop{border:1.5px dashed rgba(201,162,75,.45);border-radius:var(--radius);padding:18px;text-align:center;cursor:pointer;background:rgba(201,162,75,.04);transition:.15s}
+  .drop.over{background:rgba(201,162,75,.12);border-color:var(--primary-2)}
+  .drop b{color:var(--primary-2)}
+  .drop .hint{font-size:12px;color:var(--muted);margin-top:4px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--border);background:var(--bg);color:var(--muted);border-radius:999px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;user-select:none}
+  .chip.on{border-color:var(--primary);background:var(--primary-dim);color:var(--text)}
+  .msg{font-size:12.5px;margin-top:8px;min-height:16px}
+  .msg.err{color:var(--danger)} .msg.ok{color:var(--good)}
+
+  /* KPI-Karten */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .pcard{background:var(--card);border:1px solid var(--border);border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
+  .pcard.sel{outline:2px solid var(--primary);outline-offset:1px}
+  .phead{padding:14px 16px 12px;color:#1a1405}
+  .phead .t{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .phead input.title{background:transparent;border:0;padding:0;font-family:Sora;font-weight:700;font-size:15px;color:inherit;width:100%;box-shadow:none}
+  .phead .dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;font-size:11.5px;font-weight:700;opacity:.85}
+  .phead .dates span:last-child{text-align:right}
+  .phead .rng input{padding:2px 4px;font-size:11px;background:rgba(255,255,255,.55);border:0;color:#1a1405;border-radius:4px;width:118px}
+  .phead .btn-x{color:rgba(26,20,5,.6)} .phead .btn-x:hover{color:#5a0f0f}
+  .pbody{padding:6px 16px 0;flex:1}
+  .kpi{border-bottom:1px solid var(--border-soft);padding:9px 0}
+  .kpi .l{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted)}
+  .badge{font-size:11px;font-weight:700;border-radius:5px;padding:2px 6px;font-family:"JetBrains Mono",monospace}
+  .badge.good{background:var(--good-bg);color:var(--good)} .badge.bad{background:var(--bad-bg);color:var(--bad)} .badge.neutral{background:var(--neutral-bg);color:#c3c9d4}
+  .kpi .v{display:flex;justify-content:space-between;align-items:baseline;margin-top:3px}
+  .kpi .v b{font-size:16px;font-weight:600}
+  .kpi .v span{font-size:14px;color:var(--muted)}
+  .kpi .est{font-size:10px;color:var(--muted-2);margin-left:4px}
+  .pfoot{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:8px 12px;border-top:1px solid var(--border-soft);flex-wrap:wrap}
+  .pfoot .src{font-size:10.5px;color:var(--muted-2);font-family:"JetBrains Mono",monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .empty{color:var(--muted);text-align:center;padding:40px 10px;border:1px dashed var(--border);border-radius:var(--radius)}
+
+  /* Tabelle */
+  .tbl-wrap{overflow:auto;max-height:520px;border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:12px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  thead th{position:sticky;top:0;background:var(--card-2);color:var(--muted);text-align:right;padding:9px 10px;white-space:nowrap;border-bottom:1px solid var(--border);font-weight:600;cursor:pointer;user-select:none}
+  thead th:first-child,tbody td:first-child{text-align:left}
+  thead th.sorted{color:var(--primary-2)}
+  tbody td{padding:7px 10px;border-bottom:1px solid var(--border-soft);white-space:nowrap;text-align:right;font-family:"JetBrains Mono",monospace;font-size:12px}
+  tbody td:first-child{font-family:Manrope;font-size:12.5px;max-width:420px;overflow:hidden;text-overflow:ellipsis}
+  tbody tr:hover{background:rgba(255,255,255,.02)}
+  .tag{font-size:10px;border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--muted);margin-right:6px;font-family:"JetBrains Mono",monospace}
+  .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .between{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .note{font-size:11.5px;color:var(--muted-2);line-height:1.6;margin-top:14px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="logo">RK</span><div><b>Ramis Kaharmanov</b><span>Performance</span></div></div>
+    <nav class="nav"><a href="generator.html">Bulk Generator</a><a class="on" href="performance.html">Performance</a></nav>
+  </div>
+
+  <div class="card">
+    <h1>Performance aus Bulk-Exporten</h1>
+    <p class="sub">Lade Bulk-Exporte aus der Amazon Ads Konsole (Bulk-Vorgänge → Tabelle mit Performance-Daten erstellen). Jede Datei wird zu einer Karte; eine zweite Datei kannst du als Vergleich (z. B. Vorjahr oder Vorperiode) anhängen. Alles wird lokal im Browser ausgewertet.</p>
+
+    <div class="toolbar">
+      <div>
+        <div class="drop" id="drop">
+          <b>Bulk-Export hier ablegen</b> oder klicken
+          <div class="hint">.xlsx oder .csv · mehrere Dateien möglich · jede Datei = eine Karte</div>
+        </div>
+        <input type="file" id="fileIn" accept=".xlsx,.csv" multiple class="hidden" />
+        <input type="file" id="cmpIn" accept=".xlsx,.csv" class="hidden" />
+      </div>
+      <div>
+        <label for="filter">Kampagnen filtern (Name enthält)</label>
+        <input id="filter" placeholder="z. B. Fell und Haut  oder  -B2B-" style="width:100%" />
+      </div>
+      <div>
+        <label>Werbetyp</label>
+        <div class="chips" id="typeChips">
+          <span class="chip on" data-t="SP">Sponsored Products</span><span class="chip on" data-t="SB">Brands</span><span class="chip on" data-t="SD">Display</span>
+        </div>
+      </div>
+      <div>
+        <label for="margin">Marge vor Werbung (%)</label>
+        <input id="margin" type="number" min="0" max="100" step="1" placeholder="optional" style="width:130px" />
+      </div>
+    </div>
+    <div class="between">
+      <div class="msg" id="msg"></div>
+      <button class="btn btn-ghost" id="clearAll">Alle Karten entfernen</button>
+    </div>
+  </div>
+
+  <div style="height:16px"></div>
+  <div class="cards" id="cards"></div>
+  <div class="empty" id="empty">Noch keine Daten. Lege oben einen Bulk-Export ab.</div>
+
+  <div class="card hidden" id="detail" style="margin-top:18px">
+    <div class="between">
+      <div><h1 style="font-size:17px" id="detailTitle">Kampagnen</h1><p class="sub" id="detailSub"></p></div>
+      <div class="flex"><input id="detailSearch" placeholder="Kampagne suchen" /><button class="btn btn-ghost" id="csvOut">Als CSV</button></div>
+    </div>
+    <div class="tbl-wrap"><table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table></div>
+  </div>
+
+  <p class="note">
+    Hinweis: Bulk-Exporte enthalten nur Werbedaten – Umsatz und Einheiten sind <b>werbezugeordnet</b> (Attributionsfenster laut Amazon, bei SP 7 Tage), nicht der Gesamtumsatz deines Kontos. Erstattungen und echter Gewinn sind im Export nicht enthalten; der „Gewinn nach Werbung" ist eine Schätzung aus Umsatz × Marge − Werbekosten. Die Daten bleiben in deinem Browser und werden nicht hochgeladen.
+  </p>
+</div>
+
+<script>
+/* ============================================================
+   RK Performance – liest Amazon-Ads-Bulk-Exporte im Browser
+   ============================================================ */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- Mini-XLSX-Leser (ZIP + XML), keine Bibliothek nötig ---------- */
+async function inflateRaw(bytes){
+  const ds=new DecompressionStream("deflate-raw");
+  const stream=new Blob([bytes]).stream().pipeThrough(ds);
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+async function unzip(buf){
+  const u8=new Uint8Array(buf), dv=new DataView(buf);
+  let eocd=-1;
+  for(let i=u8.length-22;i>=Math.max(0,u8.length-70000);i--){ if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;} }
+  if(eocd<0) throw new Error("Keine gültige xlsx-Datei (ZIP-Verzeichnis fehlt).");
+  const count=dv.getUint16(eocd+10,true); let p=dv.getUint32(eocd+16,true);
+  const files={}; const dec=new TextDecoder();
+  for(let n=0;n<count;n++){
+    if(dv.getUint32(p,true)!==0x02014b50) break;
+    const method=dv.getUint16(p+10,true), csize=dv.getUint32(p+20,true), nlen=dv.getUint16(p+28,true), elen=dv.getUint16(p+30,true), clen=dv.getUint16(p+32,true), off=dv.getUint32(p+42,true);
+    const name=dec.decode(u8.subarray(p+46,p+46+nlen));
+    files[name]={method,csize,off};
+    p+=46+nlen+elen+clen;
+  }
+  return {
+    has:n=>!!files[n],
+    async text(name){
+      const f=files[name]; if(!f) return null;
+      const ln=dv.getUint16(f.off+26,true), le=dv.getUint16(f.off+28,true);
+      const data=u8.subarray(f.off+30+ln+le, f.off+30+ln+le+f.csize);
+      const raw=f.method===0?data:await inflateRaw(data);
+      return dec.decode(raw);
+    }
+  };
+}
+const colIdx=ref=>{const m=ref.match(/^[A-Z]+/)[0];let n=0;for(const ch of m)n=n*26+ch.charCodeAt(0)-64;return n-1;};
+function xmlDoc(t){return new DOMParser().parseFromString(t,"application/xml");}
+async function readXlsx(buf){
+  const z=await unzip(buf);
+  const wb=xmlDoc(await z.text("xl/workbook.xml"));
+  const rels=xmlDoc(await z.text("xl/_rels/workbook.xml.rels"));
+  const relMap={}; [...rels.getElementsByTagName("Relationship")].forEach(r=>relMap[r.getAttribute("Id")]=r.getAttribute("Target"));
+  const ss=[]; const sst=await z.text("xl/sharedStrings.xml");
+  if(sst){ [...xmlDoc(sst).getElementsByTagName("si")].forEach(si=>ss.push([...si.getElementsByTagName("t")].map(t=>t.textContent).join(""))); }
+  const sheets={};
+  for(const s of [...wb.getElementsByTagName("sheet")]){
+    const name=s.getAttribute("name");
+    const rid=s.getAttribute("r:id")||s.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","id");
+    let target=relMap[rid]||""; target=target.replace(/^\//,""); if(!target.startsWith("xl/")) target="xl/"+target;
+    const xml=await z.text(target); if(!xml) continue;
+    const rows=[];
+    for(const r of [...xmlDoc(xml).getElementsByTagName("row")]){
+      const row=[];
+      for(const c of [...r.getElementsByTagName("c")]){
+        const t=c.getAttribute("t"), ref=c.getAttribute("r");
+        let v="";
+        if(t==="s"){ const vv=c.getElementsByTagName("v")[0]; v=vv?ss[+vv.textContent]:""; }
+        else if(t==="inlineStr"){ v=[...c.getElementsByTagName("t")].map(x=>x.textContent).join(""); }
+        else { const vv=c.getElementsByTagName("v")[0]; v=vv?vv.textContent:""; }
+        row[ref?colIdx(ref):row.length]=v;
+      }
+      rows.push(row);
+    }
+    sheets[name]=rows;
+  }
+  return sheets;
+}
+function readCsv(text){
+  const first=text.split(/\r?\n/)[0]; const sep=(first.match(/;/g)||[]).length>(first.match(/,/g)||[]).length?";":",";
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else if(ch==='"') q=true;
+    else if(ch===sep){ row.push(cur); cur=""; }
+    else if(ch==="\n"||ch==="\r"){ if(ch==="\r"&&text[i+1]==="\n")i++; row.push(cur); rows.push(row); row=[]; cur=""; }
+    else cur+=ch;
+  }
+  if(cur!==""||row.length){row.push(cur);rows.push(row);}
+  return {"CSV":rows};
+}
+
+/* ---------- Spalten erkennen (Englisch + Deutsch) ---------- */
+const ALIASES={
+  entity:["entity","entität","einheit (entity)"],
+  campaign:["campaign name","campaign name (informational only)","kampagnenname","kampagne","campaign"],
+  impressions:["impressions","impressionen","sichtbare impressionen"],
+  clicks:["clicks","klicks"],
+  spend:["spend","ausgaben","kosten","werbekosten"],
+  sales:["sales","umsatz","verkäufe"],
+  orders:["orders","bestellungen"],
+  units:["units","einheiten","verkaufte einheiten","units sold"],
+  state:["state","status","campaign state (informational only)"],
+};
+function findCols(header){
+  const h=header.map(x=>String(x||"").trim().toLowerCase());
+  const pick=k=>{ for(const a of ALIASES[k]){ const i=h.indexOf(a); if(i>=0) return i; } return -1; };
+  const cols={}; Object.keys(ALIASES).forEach(k=>cols[k]=pick(k));
+  // Kampagnenname: bevorzugt die normale Spalte, sonst die informative
+  const ci=h.indexOf("campaign name"); if(ci>=0) cols.campaign=ci;
+  return cols;
+}
+const num=v=>{ if(v==null||v==="") return 0; let s=String(v).replace(/[€$£\s%]/g,"");
+  if(/,\d{1,2}$/.test(s) && s.indexOf(".")!==-1 && s.lastIndexOf(",")>s.lastIndexOf(".")) s=s.replace(/\./g,"").replace(",",".");
+  else if(/^\-?\d+,\d+$/.test(s)) s=s.replace(",",".");
+  else s=s.replace(/,/g,"");
+  const n=parseFloat(s); return isNaN(n)?0:n; };
+function sheetType(name){ const n=name.toLowerCase(); if(n.includes("display")) return "SD"; if(n.includes("brand")) return "SB"; if(n.includes("product")) return "SP"; return "SP"; }
+
+function parseExport(sheets){
+  const campaigns={}; const used=[];
+  for(const [name,rows] of Object.entries(sheets)){
+    if(!rows.length) continue;
+    // Kopfzeile in den ersten 5 Zeilen suchen
+    let hi=-1, cols=null;
+    for(let i=0;i<Math.min(5,rows.length);i++){ const c=findCols(rows[i]); if(c.campaign>=0 && c.spend>=0 && (c.sales>=0||c.clicks>=0)){hi=i;cols=c;break;} }
+    if(hi<0) continue;
+    const type=name==="CSV"?"SP":sheetType(name);
+    let n=0;
+    for(let i=hi+1;i<rows.length;i++){
+      const r=rows[i]; if(!r) continue;
+      // Nur Kampagnen-Zeilen zählen (sonst würden Anzeigengruppen/Keywords doppelt gezählt)
+      if(cols.entity>=0){ const e=String(r[cols.entity]||"").trim().toLowerCase(); if(e!=="campaign"&&e!=="kampagne") continue; }
+      const cname=String(r[cols.campaign]||"").trim(); if(!cname) continue;
+      const key=type+"|"+cname;
+      const c=campaigns[key]||(campaigns[key]={name:cname,type,impressions:0,clicks:0,spend:0,sales:0,orders:0,units:0});
+      c.impressions+=num(r[cols.impressions]); c.clicks+=num(r[cols.clicks]); c.spend+=num(r[cols.spend]);
+      c.sales+=num(r[cols.sales]); c.orders+=num(r[cols.orders]); c.units+=num(r[cols.units]); n++;
+    }
+    if(n) used.push(`${name} (${n} Kampagnen)`);
+  }
+  return {campaigns:Object.values(campaigns), used};
+}
+
+/* ---------- Zeitraum aus Dateiname ---------- */
+function detectRange(fname){
+  const m=fname.match(/(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})\D{1,6}(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})/);
+  if(m) return {from:`${m[1]}-${m[2]}-${m[3]}`,to:`${m[4]}-${m[5]}-${m[6]}`};
+  return {from:"",to:""};
+}
+const fmtD=d=>d?`${d.slice(8,10)}.${d.slice(5,7)}.${d.slice(0,4)}`:"";
+const MONTHS=["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function rangeText(r){
+  if(!r.from) return "Zeitraum unbekannt";
+  if(r.from===r.to){ const d=new Date(r.from); return `${d.getDate()}. ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; }
+  const a=new Date(r.from), b=new Date(r.to);
+  if(a.getMonth()===b.getMonth()&&a.getFullYear()===b.getFullYear()) return `${a.getDate()}.–${b.getDate()}. ${MONTHS[a.getMonth()]} ${a.getFullYear()}`;
+  return `${fmtD(r.from)} – ${fmtD(r.to)}`;
+}
+function autoLabel(r){
+  if(!r.from) return "Zeitraum";
+  const today=new Date(); const t=iso(today); const y=new Date(today); y.setDate(y.getDate()-1);
+  if(r.from===r.to&&r.from===t) return "Heute";
+  if(r.from===r.to&&r.from===iso(y)) return "Gestern";
+  const a=new Date(r.from), b=new Date(r.to);
+  if(a.getDate()===1&&a.getMonth()===today.getMonth()&&a.getFullYear()===today.getFullYear()) return "Aktueller Monat";
+  const last=new Date(b.getFullYear(),b.getMonth()+1,0).getDate();
+  const prev=new Date(today.getFullYear(),today.getMonth()-1,1);
+  if(a.getDate()===1&&b.getDate()===last&&a.getMonth()===b.getMonth()&&a.getMonth()===prev.getMonth()&&a.getFullYear()===prev.getFullYear()) return "Letzter Monat";
+  if(a.getDate()===1&&b.getDate()===last&&a.getMonth()===b.getMonth()) return `${MONTHS[a.getMonth()]} ${a.getFullYear()}`;
+  return "Zeitraum";
+}
+const days=r=>r.from&&r.to?Math.round((new Date(r.to)-new Date(r.from))/864e5)+1:0;
+
+/* ---------- Zustand ---------- */
+const state={cards:[],filter:"",types:new Set(["SP","SB","SD"]),margin:null,selected:null,sort:{k:"spend",dir:-1},cmpTarget:null};
+const LS="rk_perf_v1";
+function save(){ try{ localStorage.setItem(LS,JSON.stringify({cards:state.cards,margin:state.margin,filter:state.filter,types:[...state.types]})); }catch(e){} }
+function load(){ try{ const d=JSON.parse(localStorage.getItem(LS)||"null"); if(d){ state.cards=d.cards||[]; state.margin=d.margin??null; state.filter=d.filter||""; state.types=new Set(d.types||["SP","SB","SD"]); } }catch(e){} }
+
+/* ---------- Kennzahlen ---------- */
+function totals(ds){
+  const t={impressions:0,clicks:0,spend:0,sales:0,orders:0,units:0,n:0};
+  if(!ds) return null;
+  const f=state.filter.toLowerCase();
+  ds.campaigns.forEach(c=>{ if(!state.types.has(c.type)) return; if(f && !c.name.toLowerCase().includes(f)) return;
+    t.impressions+=c.impressions; t.clicks+=c.clicks; t.spend+=c.spend; t.sales+=c.sales; t.orders+=c.orders; t.units+=c.units; t.n++; });
+  return t;
+}
+function scale(t,k){ if(!t) return t; const o={...t}; ["impressions","clicks","spend","sales","orders","units"].forEach(x=>o[x]=t[x]*k); return o; }
+const div=(a,b)=>b?a/b:null;
+const KPIS=[
+  {k:"sales",  l:"Umsatz (Werbung)", f:t=>t.sales, fmt:"eur", better:"up", main:true},
+  {k:"spend",  l:"Werbekosten",      f:t=>t.spend, fmt:"eur", better:"neutral", main:true},
+  {k:"acos",   l:"ACOS",             f:t=>div(t.spend,t.sales), fmt:"pct", better:"down", main:true},
+  {k:"units",  l:"Einheiten",        f:t=>t.units, fmt:"int", better:"up", main:true},
+  {k:"profit", l:"Gewinn nach Werbung", f:t=>state.margin!=null?t.sales*state.margin/100-t.spend:null, fmt:"eur", better:"up", main:true, est:true, needMargin:true},
+  {k:"roas",   l:"ROAS",             f:t=>div(t.sales,t.spend), fmt:"x", better:"up"},
+  {k:"orders", l:"Bestellungen",     f:t=>t.orders, fmt:"int", better:"up"},
+  {k:"clicks", l:"Klicks",           f:t=>t.clicks, fmt:"int", better:"up"},
+  {k:"impr",   l:"Impressionen",     f:t=>t.impressions, fmt:"int", better:"up"},
+  {k:"ctr",    l:"Klickrate (CTR)",  f:t=>div(t.clicks,t.impressions), fmt:"pct2", better:"up"},
+  {k:"cpc",    l:"Kosten pro Klick", f:t=>div(t.spend,t.clicks), fmt:"eur", better:"down"},
+  {k:"cvr",    l:"Conversion Rate",  f:t=>div(t.orders,t.clicks), fmt:"pct", better:"up"},
+];
+const nf=(d)=>new Intl.NumberFormat("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d});
+function fmt(v,type){
+  if(v==null||!isFinite(v)) return "–";
+  if(type==="eur") return "€ "+nf(2).format(v);
+  if(type==="int") return nf(0).format(Math.round(v));
+  if(type==="pct") return nf(1).format(v*100)+" %";
+  if(type==="pct2") return nf(2).format(v*100)+" %";
+  if(type==="x") return nf(2).format(v);
+  return String(v);
+}
+function badge(cur,cmp,better){
+  if(cur==null||cmp==null) return "";
+  if(cmp===0) return cur===0?`<span class="badge neutral">±0,0%</span>`:`<span class="badge neutral">+∞</span>`;
+  const ch=(cur-cmp)/Math.abs(cmp);
+  const txt=(ch>0?"+":"")+nf(1).format(ch*100)+"%";
+  let cls="neutral"; if(better==="up") cls=ch>=0?"good":"bad"; if(better==="down") cls=ch<=0?"good":"bad";
+  return `<span class="badge ${cls}">${txt}</span>`;
+}
+
+/* ---------- Karten rendern ---------- */
+const HEAD_COLORS=["linear-gradient(135deg,#e4c877,#c9a24b)","linear-gradient(135deg,#d9bf7a,#b8954a)","linear-gradient(135deg,#c9ced8,#a8afbd)","linear-gradient(135deg,#d4c08f,#a99366)","linear-gradient(135deg,#bfc5cf,#959dab)"];
+function renderCards(){
+  const box=$("cards"); box.innerHTML="";
+  $("empty").classList.toggle("hidden",state.cards.length>0);
+  state.cards.forEach((c,i)=>{
+    let cur=totals(c.ds), cmp=c.cmp?totals(c.cmp):null;
+    let curR=c.ds.range, cmpR=c.cmp?c.cmp.range:null;
+    if(c.forecast){ const k=c.forecast; cur=scale(cur,k); if(cmp&&c.cmpForecast) cmp=scale(cmp,c.cmpForecast); }
+    const showMore=!!c.more;
+    const rows=KPIS.filter(k=>(k.main||showMore) && (!k.needMargin||state.margin!=null)).map(k=>{
+      const a=k.f(cur), b=cmp?k.f(cmp):null;
+      return `<div class="kpi"><div class="l">${k.l}${k.est?'<span class="est">(geschätzt)</span>':''} ${badge(a,b,k.better)}</div>
+        <div class="v"><b>${fmt(a,k.fmt)}</b><span>${cmp?fmt(b,k.fmt):""}</span></div></div>`;
+    }).join("");
+    const canForecast=!c.forecast && curR.from && curR.to && new Date(curR.from).getDate()===1 &&
+      new Date(curR.to).getDate()<new Date(new Date(curR.to).getFullYear(),new Date(curR.to).getMonth()+1,0).getDate() && new Date(curR.from).getMonth()===new Date(curR.to).getMonth();
+    const el=document.createElement("div");
+    el.className="pcard"+(state.selected===i?" sel":"");
+    el.innerHTML=`
+      <div class="phead" style="background:${HEAD_COLORS[i%HEAD_COLORS.length]}">
+        <div class="t"><input class="title" value="${esc(c.label)}" data-i="${i}" aria-label="Titel"><button class="btn-x" data-del="${i}" title="Karte entfernen">✕</button></div>
+        <div class="dates"><span>${curR.from?esc(c.forecast?c.forecastText:rangeText(curR)):`<span class="rng">Zeitraum: <input type="date" data-rf="${i}"> – <input type="date" data-rt="${i}"></span>`}</span><span>${cmp?esc(c.cmpForecast?c.cmpForecastText:rangeText(cmpR)):""}</span></div>
+      </div>
+      <div class="pbody">${cur.n||!state.filter?rows:`<div class="kpi" style="color:var(--muted)">Keine Kampagne passt zum Filter.</div>`}</div>
+      <div class="pfoot">
+        <button class="btn-link" data-more="${i}">${showMore?"Weniger":"Mehr"}</button>
+        <button class="btn-link" data-cmp="${i}">${c.cmp?"Vergleich ändern":"+ Vergleich"}</button>
+        ${canForecast?`<button class="btn-link" data-fc="${i}">Prognose</button>`:""}
+        <button class="btn-link" data-det="${i}">Kampagnen</button>
+        <div class="src" title="${esc(c.ds.file)}${c.cmp?" · Vergleich: "+esc(c.cmp.file):""}">${esc(c.ds.file)}${c.cmp?" · vs. "+esc(c.cmp.file):""}</div>
+      </div>`;
+    box.appendChild(el);
+  });
+  renderDetail(); save();
+}
+
+/* ---------- Kampagnen-Tabelle ---------- */
+const COLS=[["name","Kampagne"],["spend","Werbekosten"],["sales","Umsatz"],["acos","ACOS"],["roas","ROAS"],["orders","Bestellungen"],["units","Einheiten"],["clicks","Klicks"],["impressions","Impressionen"],["ctr","CTR"],["cpc","CPC"]];
+function renderDetail(){
+  const i=state.selected; const box=$("detail");
+  if(i==null||!state.cards[i]){ box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  const c=state.cards[i]; const f=state.filter.toLowerCase(); const q=$("detailSearch").value.toLowerCase();
+  let list=c.ds.campaigns.filter(x=>state.types.has(x.type)&&(!f||x.name.toLowerCase().includes(f))&&(!q||x.name.toLowerCase().includes(q)))
+    .map(x=>({...x,acos:div(x.spend,x.sales),roas:div(x.sales,x.spend),ctr:div(x.clicks,x.impressions),cpc:div(x.spend,x.clicks)}));
+  const {k,dir}=state.sort;
+  list.sort((a,b)=>k==="name"?dir*a.name.localeCompare(b.name):dir*((a[k]??-1)-(b[k]??-1)));
+  $("detailTitle").textContent=`Kampagnen – ${c.label}`;
+  $("detailSub").textContent=`${list.length} Kampagnen · ${rangeText(c.ds.range)} · ${c.ds.file}`;
+  $("thead").innerHTML=COLS.map(([key,l])=>`<th data-sort="${key}" class="${k===key?"sorted":""}">${l}${k===key?(dir<0?" ↓":" ↑"):""}</th>`).join("");
+  $("tbody").innerHTML=list.map(x=>`<tr><td title="${esc(x.name)}"><span class="tag">${x.type}</span>${esc(x.name)}</td>
+    <td>${fmt(x.spend,"eur")}</td><td>${fmt(x.sales,"eur")}</td><td>${fmt(x.acos,"pct")}</td><td>${fmt(x.roas,"x")}</td>
+    <td>${fmt(x.orders,"int")}</td><td>${fmt(x.units,"int")}</td><td>${fmt(x.clicks,"int")}</td><td>${fmt(x.impressions,"int")}</td>
+    <td>${fmt(x.ctr,"pct2")}</td><td>${fmt(x.cpc,"eur")}</td></tr>`).join("");
+  state._detailList=list;
+}
+
+/* ---------- Dateien laden ---------- */
+async function loadFile(file){
+  const buf=await file.arrayBuffer();
+  const sheets=file.name.toLowerCase().endsWith(".csv")?readCsv(new TextDecoder("utf-8").decode(buf)):await readXlsx(buf);
+  const {campaigns,used}=parseExport(sheets);
+  if(!campaigns.length) throw new Error(`In „${file.name}" wurden keine Kampagnen mit Performance-Daten gefunden. Bitte beim Export „Performance-Daten einbeziehen" bzw. einen Datumsbereich wählen.`);
+  const range=detectRange(file.name);   // fehlt er im Dateinamen, kann er in der Karte eingetragen werden
+  return {file:file.name,range,campaigns,used};
+}
+async function handleFiles(files){
+  $("msg").className="msg"; $("msg").textContent="Lese Datei(en) …";
+  const done=[];
+  for(const f of files){
+    try{ const ds=await loadFile(f); state.cards.push({label:autoLabel(ds.range),ds,cmp:null}); done.push(`${f.name}: ${ds.used.join(", ")}`); }
+    catch(e){ $("msg").className="msg err"; $("msg").textContent=e.message; console.error(e); return renderCards(); }
+  }
+  $("msg").className="msg ok"; $("msg").textContent="Geladen – "+done.join(" · ");
+  renderCards();
+}
+$("drop").addEventListener("click",()=>$("fileIn").click());
+$("fileIn").addEventListener("change",e=>{handleFiles([...e.target.files]);e.target.value="";});
+["dragenter","dragover"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.add("over");}));
+["dragleave","drop"].forEach(ev=>$("drop").addEventListener(ev,e=>{e.preventDefault();$("drop").classList.remove("over");}));
+$("drop").addEventListener("drop",e=>handleFiles([...e.dataTransfer.files]));
+$("cmpIn").addEventListener("change",async e=>{
+  const f=e.target.files[0]; e.target.value=""; if(!f||state.cmpTarget==null) return;
+  try{ const ds=await loadFile(f); const c=state.cards[state.cmpTarget]; c.cmp=ds; c.cmpForecast=null;
+    if(c.forecast && ds.range.from){ const dd=days(ds.range); const full=new Date(new Date(ds.range.to).getFullYear(),new Date(ds.range.to).getMonth()+1,0).getDate(); if(dd<full){c.cmpForecast=full/dd;c.cmpForecastText=`1.–${full}. ${MONTHS[new Date(ds.range.to).getMonth()]} ${new Date(ds.range.to).getFullYear()}`;} }
+    $("msg").className="msg ok"; $("msg").textContent=`Vergleich geladen: ${f.name}`; renderCards(); }
+  catch(err){ $("msg").className="msg err"; $("msg").textContent=err.message; }
+});
+
+/* ---------- Interaktionen ---------- */
+$("cards").addEventListener("click",e=>{
+  const t=e.target;
+  if(t.dataset.del!=null){ state.cards.splice(+t.dataset.del,1); if(state.selected===+t.dataset.del) state.selected=null; renderCards(); }
+  else if(t.dataset.more!=null){ const c=state.cards[+t.dataset.more]; c.more=!c.more; renderCards(); }
+  else if(t.dataset.cmp!=null){ state.cmpTarget=+t.dataset.cmp; $("cmpIn").click(); }
+  else if(t.dataset.det!=null){ state.selected=+t.dataset.det; renderCards(); $("detail").scrollIntoView({behavior:"smooth"}); }
+  else if(t.dataset.fc!=null){
+    const src=state.cards[+t.dataset.fc]; const r=src.ds.range; const end=new Date(r.to);
+    const full=new Date(end.getFullYear(),end.getMonth()+1,0).getDate(); const k=full/days(r);
+    const fc={label:src.label+" (Prognose)",ds:src.ds,cmp:src.cmp,forecast:k,forecastText:`1.–${full}. ${MONTHS[end.getMonth()]} ${end.getFullYear()}`};
+    if(src.cmp&&src.cmp.range.from){ const ce=new Date(src.cmp.range.to); const cfull=new Date(ce.getFullYear(),ce.getMonth()+1,0).getDate(); const cd=days(src.cmp.range);
+      if(cd<cfull){ fc.cmpForecast=cfull/cd; fc.cmpForecastText=`1.–${cfull}. ${MONTHS[ce.getMonth()]} ${ce.getFullYear()}`; } }
+    state.cards.splice(+t.dataset.fc+1,0,fc); renderCards();
+  }
+});
+$("cards").addEventListener("change",e=>{
+  const t=e.target;
+  if(t.classList.contains("title")){ state.cards[+t.dataset.i].label=t.value; save(); renderDetail(); return; }
+  if(t.dataset.rf!=null||t.dataset.rt!=null){
+    const i=+(t.dataset.rf??t.dataset.rt), card=t.closest(".pcard");
+    const f=card.querySelector("[data-rf]").value, to=card.querySelector("[data-rt]").value||f;
+    if(f){ const c=state.cards[i]; c.ds.range={from:f,to:to<f?f:to}; if(c.label==="Zeitraum") c.label=autoLabel(c.ds.range); renderCards(); }
+  }
+});
+$("filter").addEventListener("input",e=>{state.filter=e.target.value.trim();renderCards();});
+$("typeChips").addEventListener("click",e=>{const ch=e.target.closest(".chip");if(!ch)return;const t=ch.dataset.t;
+  if(state.types.has(t)&&state.types.size>1)state.types.delete(t);else state.types.add(t);
+  [...$("typeChips").children].forEach(x=>x.classList.toggle("on",state.types.has(x.dataset.t)));renderCards();});
+$("margin").addEventListener("input",e=>{const v=parseFloat(e.target.value);state.margin=isNaN(v)?null:v;renderCards();});
+$("clearAll").addEventListener("click",()=>{ if(!state.cards.length||confirm("Alle Karten entfernen?")){ state.cards=[]; state.selected=null; renderCards(); } });
+$("thead").addEventListener("click",e=>{const th=e.target.closest("th");if(!th)return;const k=th.dataset.sort;
+  state.sort=state.sort.k===k?{k,dir:-state.sort.dir}:{k,dir:k==="name"?1:-1};renderDetail();});
+$("detailSearch").addEventListener("input",renderDetail);
+$("csvOut").addEventListener("click",()=>{
+  const list=state._detailList||[]; const head=COLS.map(c=>c[1]).join(";");
+  const lines=list.map(x=>[x.name,x.spend,x.sales,x.acos,x.roas,x.orders,x.units,x.clicks,x.impressions,x.ctr,x.cpc].map(v=>typeof v==="number"?String(Math.round(v*10000)/10000).replace(".",","):`"${String(v??"").replace(/"/g,'""')}"`).join(";"));
+  const blob=new Blob(["﻿"+[head,...lines].join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="Kampagnen_"+(state.cards[state.selected]?.label||"Export")+".csv";document.body.appendChild(a);a.click();a.remove();
+});
+
+/* ---------- Start ---------- */
+load();
+$("filter").value=state.filter; if(state.margin!=null) $("margin").value=state.margin;
+[...$("typeChips").children].forEach(x=>x.classList.toggle("on",state.types.has(x.dataset.t)));
+if(typeof DecompressionStream==="undefined"){ $("msg").className="msg err"; $("msg").textContent="Dieser Browser kann keine .xlsx-Dateien entpacken – bitte aktuellen Chrome, Edge, Firefox oder Safari nutzen, oder CSV hochladen."; }
+renderCards();
+</script>
+</body>
+</html>
